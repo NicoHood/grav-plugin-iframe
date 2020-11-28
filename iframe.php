@@ -3,6 +3,9 @@ namespace Grav\Plugin;
 
 use Composer\Autoload\ClassLoader;
 use Grav\Common\Plugin;
+use Grav\Common\Utils;
+use RocketTheme\Toolbox\Event\Event;
+use Grav\Common\Data\Data;
 
 /**
  * Class IframePlugin
@@ -50,9 +53,114 @@ class IframePlugin extends Plugin
             return;
         }
 
+        // Check if the plugin should be enabled (routes check only).
+        $this->calculateEnable();
+
         // Enable the main events we are interested in
-        $this->enable([
-            // Put your main events here
-        ]);
+        if ($this->enable) {
+          $this->enable([
+              'onTwigTemplatePaths' => ['onTwigTemplatePaths', 0],
+              'onPageNotFound' => ['onPageNotFound', 1000],
+          ]);
+        }
+    }
+
+    /**
+     * Determine if the plugin should be enabled based on the enable_on_routes and disable_on_routes config options
+     */
+    private function calculateEnable() {
+        $path = $this->grav['uri']->path();
+
+        $disable_on_routes = (array) $this->config->get('plugins.iframe.disable_on_routes');
+        $enable_on_routes = (array) $this->config->get('plugins.iframe.enable_on_routes');
+
+        // Filter page routes
+        if (!in_array($path, $disable_on_routes)) {
+            if (in_array($path, $enable_on_routes)) {
+                $this->enable = true;
+            } else {
+                foreach($enable_on_routes as $route) {
+                    if (Utils::startsWith($path, $route)) {
+                        $this->enable = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Render vertrauenssiegel iframe
+     *
+     * @param Event $event
+     */
+    public function onPageNotFound(Event $event)
+    {
+        /** @var Pages $pages */
+        $pages = $this->grav['pages'];
+
+        /** @var Uri $uri */
+        $uri = $this->grav['uri'];
+
+        // Get corresponding parent page
+        $parent_path = dirname($uri->path());
+
+        /** @var Page $page */
+        $page = $pages->find($parent_path);
+        if ($page === NULL)
+        {
+            return;
+        }
+
+        // Make sure the page is available and published
+        if(!$page || !$page->published() || !$page->isPage()){
+            return;
+        }
+
+        // Check if plugin should be activated
+        $config = $this->mergeConfig($page);
+        if (!$config->get('active', true)) {
+            return;
+        }
+
+        // Check if the slug matches, for example restaurant/iframe -> iframe
+        if($config->get('slug', 'iframe') !== $uri->basename()){
+            return;
+        }
+
+        // Filter page template
+        $enable_on_templates = (array) $this->config->get('plugins.iframe.enable_on_templates');
+        if (!empty($enable_on_templates)) {
+            if (!in_array($page->template(), $enable_on_templates, true)) {
+                return;
+            }
+        }
+
+        // Check header rules
+        $enable_on_header = (array) $this->config->get('plugins.iframe.enable_on_header');
+        if (!empty($enable_on_header)) {
+            $header = new Data((array)$page->header());
+
+            // Each rule must have an exact match
+            foreach ($enable_on_header as $key => $value) {
+              if ($header->get($key) !== $value) {
+                  return;
+              }
+            }
+        }
+
+        // Render bikefitter page with iframe template
+        $page->template($config->get('template', 'iframe/default'));
+        $event->page = $page;
+
+        $event->stopPropagation();
+    }
+
+    /**
+     * Add templates directory to twig lookup paths.
+     */
+    public function onTwigTemplatePaths()
+    {
+        $this->grav['twig']->twig_paths[] = __DIR__ . '/templates';
     }
 }

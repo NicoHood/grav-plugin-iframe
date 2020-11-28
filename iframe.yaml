@@ -1,2 +1,36 @@
 enabled: true
-text_var: Custom Text added by the **Iframe** plugin (disable plugin to remove)
+active: true
+
+# The name appended to the actual url.
+# E.g: restaurant/seal -> seal
+# Defaults to: restaurant/iframe -> iframe
+# Can be customized on a per-page basis
+slug: iframe
+
+# Specify the template used to render the iframe
+template: 'iframe/default'
+
+# Give the iframe page a special title.
+# Can be set on a per-page basis.
+# Defaults to the page or site title.
+#title: 'Grav Iframe Plugin'
+
+# Classes added to the body tag.
+# Can be set on a per-page basis.
+#classes: 'text-large bg-dark'
+
+# Add one or multiple templates that the page must match.
+# This can be used to only add iframes to blog posts for example.
+enable_on_templates:
+# - 'blog'
+
+enable_on_routes:
+  - '/'
+
+# Filter some specific routes (exact match)
+disable_on_routes:
+
+# Only enable iframe if a specific header value is set (e.g for premium users etc.)
+enable_on_header:
+#  'structured_data.local_business.address.locality': 'Berlin'
+#  'premium': true
