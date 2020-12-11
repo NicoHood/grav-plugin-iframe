@@ -13,6 +13,8 @@ use Grav\Common\Data\Data;
  */
 class IframePlugin extends Plugin
 {
+    protected $enable = false;
+
     /**
      * @return array
      *
