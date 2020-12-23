@@ -3,7 +3,7 @@ slug: iframe
 type: plugin
 version: 0.1.0
 description: A plugin to add iframe widgets for specific websites e.g. rating seals
-icon: plug
+icon: window-maximize
 author:
   name: NicoHood
   email: grav@nicohood.de
