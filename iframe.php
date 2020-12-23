@@ -71,7 +71,7 @@ class IframePlugin extends Plugin
      * Determine if the plugin should be enabled based on the enable_on_routes and disable_on_routes config options
      */
     private function calculateEnable() {
-        $path = $this->grav['uri']->path();
+        $path = $this->grav['route']->getRoute();
 
         $disable_on_routes = (array) $this->config->get('plugins.iframe.disable_on_routes');
         $enable_on_routes = (array) $this->config->get('plugins.iframe.enable_on_routes');
