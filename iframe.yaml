@@ -17,7 +17,7 @@ template: 'iframe/default'
 
 # Classes added to the body tag.
 # Can be set on a per-page basis.
-#classes: 'text-large bg-dark'
+#classes: 'iframe'
 
 # Add one or multiple templates that the page must match.
 # This can be used to only add iframes to blog posts for example.
