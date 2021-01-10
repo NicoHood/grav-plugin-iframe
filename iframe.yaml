@@ -1,36 +1,43 @@
 enabled: true
-active: true
+active: false
 
-# The name appended to the actual url.
-# E.g: restaurant/seal -> seal
-# Defaults to: restaurant/iframe -> iframe
-# Can be customized on a per-page basis
-slug: iframe
+rules:
+    example:
+        # The name appended to the actual url.
+        # E.g: restaurant/seal -> seal
+        # Defaults to: restaurant/iframe -> iframe
+        # Can be customized on a per-page basis
+        slug: iframe
 
-# Specify the template used to render the iframe
-template: 'iframe/default'
+        # Specify the template used to render the iframe
+        template: 'iframe/default'
 
-# Give the iframe page a special title.
-# Can be set on a per-page basis.
-# Defaults to the page or site title.
-#title: 'Grav Iframe Plugin'
+        # New page to inject (instead of the parent)
+        # NOTE: This page can be set to routable: false,
+        # to hide it, if desired.
+        page: '/iframe/edit'
 
-# Classes added to the body tag.
-# Can be set on a per-page basis.
-#classes: 'iframe'
+        # Twig variable name of the parent page.
+        twig_var_parent_page: 'parent_page'
 
-# Add one or multiple templates that the page must match.
-# This can be used to only add iframes to blog posts for example.
-enable_on_templates:
-# - 'blog'
+        # Add one or multiple templates that the page must match.
+        # This can be used to only add iframes to blog posts for example.
+        enable_on_templates:
+        # - 'blog'
 
-enable_on_routes:
-  - '/'
+        enable_on_routes:
+          - '/'
 
-# Filter some specific routes (exact match)
-disable_on_routes:
+        # Only enable if a specific header value is set.
+        # E.g for premium users
+        enable_on_header:
+        #  'structured_data.local_business.address.locality': 'Berlin'
+        #  'premium': true
 
-# Only enable iframe if a specific header value is set (e.g for premium users etc.)
-enable_on_header:
-#  'structured_data.local_business.address.locality': 'Berlin'
-#  'premium': true
+        # Filter some specific routes (exact match of the parent page)
+        disable_on_routes:
+
+        # Set page.route to parent.
+        # This might be important for some plugins
+        # to treat the page as if it would be the parent.
+        parent_route: false

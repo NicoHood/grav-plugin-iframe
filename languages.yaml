@@ -1,4 +1,3 @@
 en:
   PLUGIN_IFRAME:
-    TEXT_VARIABLE: Text Variable
-    TEXT_VARIABLE_HELP: Text to add to the top of a page
+    PAGE_NOT_FOUND: 'Specified iframe plugin page was not found.'

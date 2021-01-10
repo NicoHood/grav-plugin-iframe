@@ -13,7 +13,9 @@ use Grav\Common\Data\Data;
  */
 class IframePlugin extends Plugin
 {
-    protected $enable = false;
+    protected $path;
+    protected $parent_path;
+    protected $slug;
 
     /**
      * @return array
@@ -55,107 +57,175 @@ class IframePlugin extends Plugin
             return;
         }
 
-        // Check if the plugin should be enabled (routes check only).
-        $this->calculateEnable();
-
         // Enable the main events we are interested in
-        if ($this->enable) {
-          $this->enable([
-              'onTwigTemplatePaths' => ['onTwigTemplatePaths', 0],
-              'onPageNotFound' => ['onPageNotFound', 1000],
-          ]);
-        }
+        $this->enable([
+            'onTwigTemplatePaths' => ['onTwigTemplatePaths', 0],
+            'onPageInitialized' => ['onPageInitialized', 100000],
+        ]);
     }
 
     /**
-     * Determine if the plugin should be enabled based on the enable_on_routes and disable_on_routes config options
-     */
-    private function calculateEnable() {
-        $path = $this->grav['route']->getRoute();
-
-        $disable_on_routes = (array) $this->config->get('plugins.iframe.disable_on_routes');
-        $enable_on_routes = (array) $this->config->get('plugins.iframe.enable_on_routes');
-
-        // Filter page routes
-        if (!in_array($path, $disable_on_routes)) {
-            if (in_array($path, $enable_on_routes)) {
-                $this->enable = true;
-            } else {
-                foreach($enable_on_routes as $route) {
-                    if (Utils::startsWith($path, $route)) {
-                        $this->enable = true;
-                        break;
-                    }
-                }
-            }
-        }
-    }
-
-    /**
-     * Render vertrauenssiegel iframe
+     * Inject iframe page dynamically
      *
      * @param Event $event
      */
-    public function onPageNotFound(Event $event)
+    public function onPageInitialized(Event $event)
     {
+        // Get corresponding parent page
+        // NOTE: Uri.path() is not used here by intention: https://github.com/getgrav/grav/issues/3103
+        $this->path = $this->grav['route']->getRoute();
+        $this->parent_path = dirname($this->path);
+        $this->slug = basename($this->path);
+
+        $page = $this->handleIframe();
+        if ($page) {
+            // Fix RuntimeException: Cannot override frozen service "page" issue
+            // NOTE: This is kinda a workaround, but also used by the official sitemap plugin
+            unset($this->grav['page']);
+            $this->grav['page'] = $page;
+        }
+    }
+
+    /**
+     * Check if uri is a valid iframe config, then return a new page to inject
+     */
+    public function handleIframe(): ?\Grav\Common\Page\Interfaces\PageInterface {
         /** @var Pages $pages */
         $pages = $this->grav['pages'];
 
-        /** @var Uri $uri */
-        $uri = $this->grav['uri'];
-
-        // Get corresponding parent page
-        $parent_path = dirname($uri->path());
-
         /** @var Page $page */
-        $page = $pages->find($parent_path);
-        if ($page === NULL)
+        $parent_page = $pages->find($this->parent_path);
+        if ($parent_page === NULL)
         {
-            return;
+            return null;
         }
 
         // Make sure the page is available and published
-        if(!$page || !$page->published() || !$page->isPage()){
-            return;
+        if(!$parent_page || !$parent_page->published() || !$parent_page->isPage()){
+            return null;
+        }
+
+        $header = $parent_page->header();
+        if (!($header instanceof \Grav\Common\Page\Header)) {
+            $header = new \Grav\Common\Page\Header((array)$header);
         }
 
         // Check if plugin should be activated
-        $config = $this->mergeConfig($page);
+        $config = $this->mergeConfig($parent_page);
         if (!$config->get('active', true)) {
-            return;
+            return null;
         }
 
+        // Go through all rules
+        foreach ($config->get('rules') as $name => $rules) {
+            $rules = new Data($rules);
+
+            // Check if enable and disable conditions matches
+            if (!$this->isIframeRuleActive($parent_page, $rules)) {
+                continue;
+            }
+
+            // Load a different page, if configured
+            $page = $parent_page;
+            $newpage_route = $rules->get('page');
+            if ($newpage_route) {
+                $page = $pages->find($newpage_route);
+                if(!$page) {
+                    throw new \RuntimeException($this->grav['language']->translate('PLUGIN_IFRAME.PAGE_NOT_FOUND'));
+                }
+
+                // Set page to routable
+                $page->routable(true);
+            }
+
+            // Add parent page as optional twig variable
+            $twig_var_parent_page = $rules->get('twig_var_parent_page', 'parent_page');
+            if ($twig_var_parent_page) {
+                $this->grav['twig']->twig_vars[$twig_var_parent_page] = $parent_page;
+            }
+
+            // Render page with different template
+            $template = $rules->get('template');
+            if ($template) {
+                $page->template($template);
+            }
+
+            // Render page with different title
+            $title = $rules->get('title');
+            if ($title) {
+                $page->title($title);
+            }
+
+            // Fix route
+            if ($rules->get('parent_route', false)) {
+                $page->route($this->parent_path);
+            }
+            else {
+                $page->route($this->path);
+            }
+
+            return $page;
+        }
+
+        // No valid iframe found
+        return null;
+    }
+
+    /**
+     * Determine if the plugin should be enabled based on the following config options:
+     * slug
+     * enable_on_templates
+     * enable_on_header
+     * enable_on_routes
+     * disable_on_routes
+     */
+    public function isIframeRuleActive(\Grav\Common\Page\Interfaces\PageInterface $parent_page, Data $config): bool {
         // Check if the slug matches, for example restaurant/iframe -> iframe
-        if($config->get('slug', 'iframe') !== $uri->basename()){
-            return;
+        if ($config->get('slug') !== $this->slug) {
+            return false;
         }
 
         // Filter page template
-        $enable_on_templates = (array) $this->config->get('plugins.iframe.enable_on_templates');
+        $enable_on_templates = (array) $config->get('enable_on_templates');
         if (!empty($enable_on_templates)) {
-            if (!in_array($page->template(), $enable_on_templates, true)) {
-                return;
+            if (!in_array($parent_page->template(), $enable_on_templates, true)) {
+                return false;
             }
         }
 
         // Check header rules
-        $enable_on_header = (array) $this->config->get('plugins.iframe.enable_on_header');
+        $enable_on_header = (array) $config->get('enable_on_header');
         if (!empty($enable_on_header)) {
-            $header = new Data((array)$page->header());
+            $header = $parent_page->header();
+            if (!($header instanceof \Grav\Common\Page\Header)) {
+                $header = new \Grav\Common\Page\Header((array)$header);
+            }
 
             // Each rule must have an exact match
             foreach ($enable_on_header as $key => $value) {
-              if ($header->get($key) !== $value) {
-                  return;
-              }
+                if ($header->get($key) !== $value) {
+                    return false;
+                }
             }
         }
 
-        // Render bikefitter page with iframe template
-        $page->template($config->get('template', 'iframe/default'));
-        $event->page = $page;
+        // Filter page routes (Must be placed as last rule,
+        // due to returning true instead of false)
+        $disable_on_routes = (array) $config->get('disable_on_routes');
+        $enable_on_routes = (array) $config->get('enable_on_routes', ['/']);
 
-        $event->stopPropagation();
+        if (!in_array($this->parent_path, $disable_on_routes)) {
+            if (in_array($this->parent_path, $enable_on_routes)) {
+                return true;
+            } else {
+                foreach($enable_on_routes as $route) {
+                    if (Utils::startsWith($this->parent_path, $route)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /**
