@@ -83,6 +83,11 @@ class IframePlugin extends Plugin
             // NOTE: This is kinda a workaround, but also used by the official sitemap plugin
             unset($this->grav['page']);
             $this->grav['page'] = $page;
+
+            // Add this dynamic page to the pages array, as the form plugin requires it on a form submission.
+            // NOTE: This might not be the correct way to do the initialization, but I did not find another way yet!
+            $pages = $this->grav['pages'];
+            $pages->addPage($page);
         }
     }
 
