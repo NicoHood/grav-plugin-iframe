@@ -1,7 +1,7 @@
 name: Iframe
 slug: iframe
 type: plugin
-version: 0.1.0
+version: 0.1.1
 description: A plugin to add iframe widgets for specific websites e.g. rating seals
 icon: window-maximize
 author:
