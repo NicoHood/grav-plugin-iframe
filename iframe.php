@@ -86,8 +86,11 @@ class IframePlugin extends Plugin
 
             // Add this dynamic page to the pages array, as the form plugin requires it on a form submission.
             // NOTE: This might not be the correct way to do the initialization, but I did not find another way yet!
+            // It seems correct though!
             $pages = $this->grav['pages'];
-            $pages->addPage($page);
+            if (!$pages->find($page->route())) {
+                $pages->addPage($page);
+            }
         }
     }
 
